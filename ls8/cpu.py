@@ -1,30 +1,60 @@
 """CPU functionality."""
 
 import sys
+HLT = 0b00000001
+LDI = 0b10000010
+PRN = 0b01000111
+AND = 0b10101000
+MULT = 0b10100010
+PUSH = 0b01000101
+POP = 0b01000110
+CALL = 0b01010000
+RET = 0b00010001
+
+SP = 7
 
 class CPU:
     """Main CPU class."""
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        self.reg = [0] * 8
+        self.ram = [0] * 256
+        self.reg[7] = 0xF4
+        self.pc = 0
+        self.halted = False
 
-    def load(self):
+    def ram_read(self, address):
+        return self.ram[address]
+
+    def ram_write(self, address, val):
+        self.ram[address] = val
+
+    def load(self, filename):
         """Load a program into memory."""
 
         address = 0
+        with open(filename) as fp:
+            for line in fp:
+                comment_split = line.split("#")
+                num = comment_split[0].strip()
+                if num == '': # ignore blanks
+                    continue
+                val = int(num, 2)
+                self.ram_write(val, address)
+                address += 1
 
         # For now, we've just hardcoded a program:
 
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
+        # program = [
+        #     # From print8.ls8
+        #     0b10000010, # LDI R0,8
+        #     0b00000000,
+        #     0b00001000,
+        #     0b01000111, # PRN R0
+        #     0b00000000,
+        #     0b00000001, # HLT
+        # ]
 
         for instruction in program:
             self.ram[address] = instruction
@@ -62,4 +92,46 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        while not self.halted:
+            instruction_to_execute = self.ram_read(self.pc)
+            operand_a = self.ram_read(self.pc + 1)
+            operand_b = self.ram_read(self.pc + 2)
+            self.execute_instruction(instruction_to_execute, operand_a,operand_b)
+    
+    def execute_instruction(self, instruction_to_execute, operand_a, operand_b):
+        if instruction == HLT:
+            self.halted = True
+            self.pc += 1
+        elif instruction == PRN:
+            print(self.reg[operand_a])
+            self.pc += 2
+        elif instruction == LDI:
+            self.reg[operand_a] = operand_b
+            self.pc += 3
+        elif instruction == MULT:
+            self.reg[operand_a] += self.reg[operand_b]
+            self.pc += 3
+        elif instruction == PUSH:
+            self.reg[SP] -= 1 # decrement the stack pointer
+            valueFromRegister = self.reg[operand_a] # write the value stored in register onto the stack
+            self.ram_write(valueFromRegister, self.reg[SP])
+            self.pc += 2
+        elif instruction == POP:
+            topmostValue = self.ram_read(self.reg[SP]) # Save the value on top the stack onto the register given
+            self.reg[operand_a] = topmostValue
+            self.reg[SP] += 1 # increment the stack pointer
+            self.pc += 2
+        elif instruction == CALL:
+            self.reg[SP] -= 1
+            address = self.pc + 2
+            self.ram_write(address ,self.reg[SP])
+            regToGetAddressFrom = self.ram_read(self.reg[SP])
+            regToJumpTo = self.reg[operand_a]
+            pc = regToJumpTo
+        elif instruction == RET:
+            regToReturnTo = self.ram_read(self.reg[SP])
+            self.ram_write(1, self.reg[SP])
+            pc = regToReturnTo
+        else:
+            print("Idk this instruction. Exiting")
+            sys.exit(1)
